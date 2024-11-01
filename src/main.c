@@ -31,14 +31,21 @@ void enable_ports(void) {
     // Only enable port C for the keypad
     RCC->AHBENR |= RCC_AHBENR_GPIOCEN;
     GPIOC->MODER &= ~0xffffff;
-    for(int i = 0; i++; i<12) {
+    for(int i = 0; i<12; i++) {
         GPIOC->MODER |= (3 << i);
     }
     GPIOC->OTYPER &= ~0xfff;
 }
 
 void turn_stuff_on(void) {
-    GPIOC->ODR |= 0xfff;
+    int i = 0;
+    while (i < 10000) {
+        GPIOC->ODR |= 0xfff;
+        nano_wait(50);
+        GPIOC->ODR &= ~0xfff;
+        nano_wait(50);
+    }
+
 }
 
 uint8_t col; // the column being scanned
@@ -321,6 +328,7 @@ int main(void) {
     */
     // GPIO enable
     enable_ports();
+    turn_stuff_on();
     // setup keyboard
     /*
     init_tim7();
