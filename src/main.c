@@ -30,17 +30,20 @@ void autotest();
 void enable_ports(void) {
     // Only enable port C for the keypad
     RCC->AHBENR |= RCC_AHBENR_GPIOCEN;
-    GPIOC->MODER &= ~0xffff;
-    GPIOC->MODER |= 0x55 << (4*2);
-    GPIOC->OTYPER &= ~0xff;
-    GPIOC->OTYPER |= 0xf0;
-    GPIOC->PUPDR &= ~0xff;
-    GPIOC->PUPDR |= 0x55;
+    GPIOC->MODER &= ~0xffffff;
+    for(int i = 0; i++; i<12) {
+        GPIOC->MODER |= (3 << i);
+    }
+    GPIOC->OTYPER &= ~0xfff;
 }
 
+void turn_stuff_on(void) {
+    GPIOC->ODR |= 0xfff;
+}
 
 uint8_t col; // the column being scanned
 
+/*
 void drive_column(int);   // energize one of the column outputs
 int  read_rows();         // read the four row inputs
 void update_history(int col, int rows); // record the buttons of the driven column
@@ -48,10 +51,11 @@ char get_key_event(void); // wait for a button event (press or release)
 char get_keypress(void);  // wait for only a button press event.
 float getfloat(void);     // read a floating-point number from keypad
 void show_keys(void);     // demonstrate get_key_event()
-
+*/
 //===========================================================================
 // Bit Bang SPI LED Array
 //===========================================================================
+/*
 int msg_index = 0;
 uint16_t msg[8] = { 0x0000,0x0100,0x0200,0x0300,0x0400,0x0500,0x0600,0x0700 };
 extern const char font[];
@@ -302,10 +306,10 @@ void spi1_enable_dma(void) {
 //===========================================================================
 // Main function
 //===========================================================================
-
+*/
 int main(void) {
     internal_clock();
-
+    /*
     msg[0] |= font['E'];
     msg[1] |= font['C'];
     msg[2] |= font['E'];
@@ -314,10 +318,11 @@ int main(void) {
     msg[5] |= font['6'];
     msg[6] |= font['2'];
     msg[7] |= font[' '];
-
+    */
     // GPIO enable
     enable_ports();
     // setup keyboard
+    /*
     init_tim7();
 
     // LED array Bit Bang
@@ -369,4 +374,5 @@ int main(void) {
 
     // Game on!  The goal is to score 100 points.
     //game();
+    */
 }
