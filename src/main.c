@@ -32,20 +32,32 @@ void enable_ports(void) {
     RCC->AHBENR |= RCC_AHBENR_GPIOCEN;
     GPIOC->MODER &= ~0xffffff;
     for(int i = 0; i<12; i++) {
-        GPIOC->MODER |= (3 << i);
+        GPIOC->MODER |= (3 << i*2);
     }
     GPIOC->OTYPER &= ~0xfff;
 }
 
 void turn_stuff_on(void) {
     int i = 0;
-    while (i < 10000) {
-        GPIOC->ODR |= 0xfff;
-        nano_wait(50);
-        GPIOC->ODR &= ~0xfff;
-        nano_wait(50);
+    if (GPIOC->IDR & (1<<6) == 0) {
+        GPIOC->ODR |= 1<<6;
+    } else {
+        GPIOC->ODR &= ~(1<<6);
     }
+}
 
+void init_tim7(void) {
+    RCC->APB1ENR |= RCC_APB1ENR_TIM7EN;
+    TIM7->PSC = 480-1;
+    TIM7->ARR = 100-1;
+    TIM7->DIER |= TIM_DIER_UIE;
+    NVIC_EnableIRQ(TIM7_IRQn);
+    TIM7->CR1 |= TIM_CR1_CEN;
+}
+
+void TIM7_IRQHandler(void) {
+    TIM7->SR &= ~TIM_SR_UIF;
+    turn_stuff_on();
 }
 
 uint8_t col; // the column being scanned
@@ -328,7 +340,7 @@ int main(void) {
     */
     // GPIO enable
     enable_ports();
-    turn_stuff_on();
+    init_tim7();
     // setup keyboard
     /*
     init_tim7();
