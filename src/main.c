@@ -34,7 +34,7 @@ void enable_ports(void) {
     RCC->AHBENR |= RCC_AHBENR_GPIOCEN;
     GPIOC->MODER &= ~0xffffff;
     for(int i = 0; i<12; i++) {
-        GPIOC->MODER |= (3 << i*2);
+        GPIOC->MODER |= (1 << i*2);
     }
     GPIOC->OTYPER &= ~0xfff;
     GPIOC->ODR |= 1<<7;
@@ -43,6 +43,7 @@ void enable_ports(void) {
 }
 
 void set_color(int r0, int g0, int b0, int r1, int g1, int b1) {
+    //GPIOC->ODR &= ~(1<<0 | 1<<1 | 1<<2 | 1<<3 | 1<<8 | 1<<9);
     GPIOC->ODR |= r0<<0;
     GPIOC->ODR |= b0<<1;
     GPIOC->ODR |= r1<<2;
