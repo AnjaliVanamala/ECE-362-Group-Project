@@ -17,16 +17,18 @@ const char* username = "avanamal";
 
 #include "stm32f0xx.h"
 
-void set_char_msg(int, char);
 void nano_wait(unsigned int);
-void game(void);
 void internal_clock();
-void check_wiring();
-void autotest();
+void enable_ports();
+void set_color(int, int, int, int, int, int);
+void pulse_clock();
+void pulse_latch();
+
 
 //===========================================================================
 // Configure GPIOC
 //===========================================================================
+
 void enable_ports(void) {
     // Only enable port C for the keypad
     RCC->AHBENR |= RCC_AHBENR_GPIOCEN;
@@ -35,33 +37,39 @@ void enable_ports(void) {
         GPIOC->MODER |= (3 << i*2);
     }
     GPIOC->OTYPER &= ~0xfff;
+    GPIOC->ODR |= 1<<7;
+    GPIOC->ODR &= ~(1<<6 | 1<<11);
 }
 
-void turn_stuff_on(void) {
-    int i = 0;
-    if (GPIOC->IDR & (1<<6) == 0) {
-        GPIOC->ODR |= 1<<6;
-    } else {
-        GPIOC->ODR &= ~(1<<6);
-    }
+void set_color(int r0, int g0, int b0, int r1, int g1, int b1) {
+    GPIOC->ODR |= 0<<r0;
+    GPIOC->ODR |= 1<<b0;
+    GPIOC->ODR |= 2<<r1;
+    GPIOC->ODR |= 3<<b1;
+    GPIOC->ODR |= 8<<g0;
+    GPIOC->ODR |= 9<<g1;
 }
 
-void init_tim7(void) {
-    RCC->APB1ENR |= RCC_APB1ENR_TIM7EN;
-    TIM7->PSC = 480-1;
-    TIM7->ARR = 100-1;
-    TIM7->DIER |= TIM_DIER_UIE;
-    NVIC_EnableIRQ(TIM7_IRQn);
-    TIM7->CR1 |= TIM_CR1_CEN;
+void pulse_clock(void) {
+    GPIOC->ODR |= 1<<6;
+    nano_wait(1);
+    GPIOC->ODR &= ~(1<<6);
 }
 
-void TIM7_IRQHandler(void) {
-    TIM7->SR &= ~TIM_SR_UIF;
-    turn_stuff_on();
+void pulse_latch(void) {
+    GPIOC->ODR |= 1<<11;
+    nano_wait(1);
+    GPIOC->ODR &= ~(1<<11);
 }
 
-uint8_t col; // the column being scanned
-
+int main(void) {
+    internal_clock();
+    enable_ports();
+    set_color(1, 0, 0, 1, 0, 0);
+    pulse_clock();
+    pulse_latch();
+    //init_tim7();
+}
 /*
 void drive_column(int);   // energize one of the column outputs
 int  read_rows();         // read the four row inputs
@@ -326,8 +334,8 @@ void spi1_enable_dma(void) {
 // Main function
 //===========================================================================
 */
-int main(void) {
-    internal_clock();
+//int main(void) {
+    //internal_clock();
     /*
     msg[0] |= font['E'];
     msg[1] |= font['C'];
@@ -339,8 +347,9 @@ int main(void) {
     msg[7] |= font[' '];
     */
     // GPIO enable
-    enable_ports();
-    init_tim7();
+    //enable_ports();
+    //init_tim7();
+    
     // setup keyboard
     /*
     init_tim7();
@@ -395,4 +404,4 @@ int main(void) {
     // Game on!  The goal is to score 100 points.
     //game();
     */
-}
+//}
