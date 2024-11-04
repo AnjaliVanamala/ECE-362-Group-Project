@@ -39,26 +39,27 @@ void enable_ports(void) {
     GPIOC->OTYPER &= ~0xfff;
     GPIOC->ODR |= 1<<7;
     GPIOC->ODR &= ~(1<<6 | 1<<11);
+    GPIOC->ODR |= 1<<4;
 }
 
 void set_color(int r0, int g0, int b0, int r1, int g1, int b1) {
-    GPIOC->ODR |= 0<<r0;
-    GPIOC->ODR |= 1<<b0;
-    GPIOC->ODR |= 2<<r1;
-    GPIOC->ODR |= 3<<b1;
-    GPIOC->ODR |= 8<<g0;
-    GPIOC->ODR |= 9<<g1;
+    GPIOC->ODR |= r0<<0;
+    GPIOC->ODR |= b0<<1;
+    GPIOC->ODR |= r1<<2;
+    GPIOC->ODR |= b1<<3;
+    GPIOC->ODR |= g0<<8;
+    GPIOC->ODR |= g1<<9;
 }
 
 void pulse_clock(void) {
     GPIOC->ODR |= 1<<6;
-    nano_wait(1);
+    nano_wait(5);
     GPIOC->ODR &= ~(1<<6);
 }
 
 void pulse_latch(void) {
     GPIOC->ODR |= 1<<11;
-    nano_wait(1);
+    nano_wait(5);
     GPIOC->ODR &= ~(1<<11);
 }
 
