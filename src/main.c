@@ -19,8 +19,10 @@ const char* username = "avanamal";
 
 void nano_wait(unsigned int);
 void internal_clock();
+
 void enable_ports();
 void set_color(int, int, int, int, int, int);
+void full_clock(void);
 void pulse_clock();
 void pulse_latch();
 
@@ -37,13 +39,14 @@ void enable_ports(void) {
         GPIOC->MODER |= (1 << i*2);
     }
     GPIOC->OTYPER &= ~0xfff;
-    GPIOC->ODR |= 1<<7;
+    //GPIOC->ODR |= 1<<7;
     GPIOC->ODR &= ~(1<<6 | 1<<11);
     GPIOC->ODR |= 1<<4;
+    GPIOC->ODR |= 1<<5;
 }
 
 void set_color(int r0, int g0, int b0, int r1, int g1, int b1) {
-    //GPIOC->ODR &= ~(1<<0 | 1<<1 | 1<<2 | 1<<3 | 1<<8 | 1<<9);
+    GPIOC->ODR &= ~(1<<0 | 1<<1 | 1<<2 | 1<<3 | 1<<8 | 1<<9);
     GPIOC->ODR |= r0<<0;
     GPIOC->ODR |= b0<<1;
     GPIOC->ODR |= r1<<2;
@@ -54,20 +57,35 @@ void set_color(int r0, int g0, int b0, int r1, int g1, int b1) {
 
 void pulse_clock(void) {
     GPIOC->ODR |= 1<<6;
-    nano_wait(5);
     GPIOC->ODR &= ~(1<<6);
+}
+
+void full_clock(void) {
+    for(int i = 0; i<32; i++){
+        if(i%4) {
+            set_color(0, 1, 0, 0, 1, 0);
+        } else {
+            set_color(0, 0, 1, 0, 0, 1);
+        }
+        pulse_clock();
+        pulse_latch();
+    }
 }
 
 void pulse_latch(void) {
     GPIOC->ODR |= 1<<11;
-    nano_wait(5);
     GPIOC->ODR &= ~(1<<11);
 }
 
 int main(void) {
     internal_clock();
     enable_ports();
-    set_color(1, 0, 0, 1, 0, 0);
+    
+    GPIOC->ODR |= 1<<7;
+    nano_wait(500);
+    GPIOC->ODR &= ~(1<<7);
+    //full_clock();
+    set_color(0, 0, 0, 1, 1, 0);
     pulse_clock();
     pulse_latch();
     //init_tim7();
