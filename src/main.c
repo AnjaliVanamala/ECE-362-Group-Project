@@ -23,6 +23,7 @@ void internal_clock();
 void enable_ports();
 void set_color(int, int, int, int, int, int);
 void full_clock(void);
+void set_row(int);
 void pulse_clock();
 void pulse_latch();
 void write_display();
@@ -71,40 +72,70 @@ void set_color(int r0, int g0, int b0, int r1, int g1, int b1) {
 }
 
 void pulse_clock(void) {
+    nano_wait(5);
     GPIOC->ODR |= 1<<6;
+    nano_wait(5);
     GPIOC->ODR &= ~(1<<6);
+    nano_wait(5);
 }
 
-void full_clock(void) {
+void set_row(int num) {
+    GPIOC->ODR &= ~(1<<4 | 1<<10 | 1<<5);
+    int A = num % 2;
+    int C = num / 4;
+    int B = (num - 4*C) / 2;
+    GPIOC->ODR |= (A<<4);
+    GPIOC->ODR |= (B<<10);
+    GPIOC->ODR |= (C<<5);
+}
+
+void full_clock(int min, int max) {
     for(int i = 0; i<32; i++){
-        if(i%4) {
-            set_color(0, 1, 0, 0, 1, 0);
+        if(i >= min && i <= max) {
+            set_color(1, 0, 0, 1, 0, 0);
         } else {
-            set_color(0, 0, 1, 0, 0, 1);
+            set_color(0, 0, 0, 0, 0, 0);
         }
         pulse_clock();
-        pulse_latch();
     }
+    pulse_latch();
 }
 
 void pulse_latch(void) {
+    nano_wait(5);
     GPIOC->ODR |= 1<<11;
+    nano_wait(5);
     GPIOC->ODR &= ~(1<<11);
+    nano_wait(5);
 }
 
 int main(void) {
     internal_clock();
     enable_ports();
-    
-    GPIOC->ODR |= 1<<7;
-    nano_wait(500);
-    GPIOC->ODR &= ~(1<<7);
-    //full_clock();
-    set_color(0, 0, 0, 1, 1, 0);
-    pulse_clock();
-    pulse_latch();
-    //init_tim7();
-}
+    int i = 0;
+    int arr[6] = {0, 1, 2, 4, 5, 6};
+    int j = 0;
+    int min = 0; 
+    int max = 4;
+    while(1) {
+        GPIOC->ODR |= 1<<7;
+        set_row(arr[i]);
+        full_clock(min, max);
+        GPIOC->ODR &= ~(1<<7);
+        i++;
+        i %=6;
+        nano_wait(50000);
+        j++;
+        if(j > 1000){
+            j = 0;
+            min++;
+            max++;
+            if (max == 32) {
+                max = 4; 
+                min = 0;
+            }
+        }
+    }
 
 
 //===========================================================================
