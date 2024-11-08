@@ -25,7 +25,22 @@ void set_color(int, int, int, int, int, int);
 void full_clock(void);
 void pulse_clock();
 void pulse_latch();
+void write_display();
+void update_score();
+void setup_tim14();
 
+//Global Structures for SSD
+char disp[9]         = "Hello...";
+uint8_t mode         = 'A';
+uint8_t score       = 0;
+
+extern uint8_t mode;
+extern char keymap;
+extern char disp[9];
+extern char score;
+
+char* keymap_arr = &keymap;
+extern uint8_t font[];
 
 //===========================================================================
 // Configure GPIOC
@@ -90,6 +105,80 @@ int main(void) {
     pulse_latch();
     //init_tim7();
 }
+
+
+//===========================================================================
+// Write Seven Segment Display Stuff - a lot of it's what we did for lab 3
+//===========================================================================
+void show_char(int n, char c) {
+
+  if((n>=0)&&(n<=7))
+  {
+    GPIOB->ODR &= ~0x07FF;
+    GPIOB->ODR |= n << 8;
+    
+    GPIOB->ODR |= font[c];
+  }
+  else{
+    return;
+  }
+}
+
+void write_display() {
+  if(mode == 'Start'){
+      snprintf(disp, 9, "Start"); //for all of the stuff we're printing, we need to come up with diff displays to fit on ssd
+  }
+  else if(mode == 'Run'){
+      snprintf(disp, 9, "Current Score: %4d", score);
+  }
+  else if(mode == 'End'){
+     snprintf(disp, 9, "End Score: %4d", score);
+  }
+}
+
+//===========================================================================
+// Update Score & Timer 14 Stuff
+//===========================================================================
+void update_score() {
+    score += points; //update score by number of points per note, class before each write_display in timer 14
+}
+void TIM14_IRQHandler(void) {
+    // Acknowledge the interrupt
+    TIM14 -> SR &= ~TIM_SR_UIF;
+    // call update_score
+    update_score();
+    // call write_display
+    write_display();
+}
+void setup_tim14() {
+// And then implement the function setup_tim14 to initialize Timer 14 to invoke an update interrupt twice per second (2 Hz). 
+// This will be used to update the game state and display 2 times a second
+    RCC->APB1ENR |= RCC_APB1ENR_TIM14EN;
+    TIM14->ARR = 1000-1;
+    TIM14->PSC = 24000-1; 
+    TIM14->DIER |= TIM_DIER_UIE;
+    NVIC_EnableIRQ(TIM14_IRQn);
+    TIM14->CR1 |= TIM_CR1_CEN;
+}
+
+//===========================================================================
+// Mode Stuff --- Depends on what buttons we're using
+//===========================================================================
+void mode_select(char key) {
+    // if key == 'A'/'B'/'C', set mode to key
+    if((key == 'A')){
+     mode = 'Start';
+    }
+    else if((key == 'B')){
+     mode = 'Run';
+    }
+    else if((key == 'C')){
+     mode = 'End';
+    }
+}
+
+
+
 /*
 void drive_column(int);   // energize one of the column outputs
 int  read_rows();         // read the four row inputs
