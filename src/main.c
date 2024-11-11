@@ -22,7 +22,7 @@ void internal_clock();
 
 void enable_ports();
 void set_color(int, int, int, int, int, int);
-void full_clock(void);
+void full_clock(int);
 void set_row(int);
 void pulse_clock();
 void pulse_latch();
@@ -35,10 +35,15 @@ char disp[9]         = "Hello...";
 uint8_t mode         = 'A';
 uint8_t score       = 0;
 
+int arr1[32]; 
+int arr2[32]; 
+int arr3[32]; 
+int arr4[32]; 
+
+
 extern uint8_t mode;
 extern char keymap;
 extern char disp[9];
-extern char score;
 
 char* keymap_arr = &keymap;
 extern uint8_t font[];
@@ -59,6 +64,15 @@ void enable_ports(void) {
     GPIOC->ODR &= ~(1<<6 | 1<<11);
     GPIOC->ODR |= 1<<4;
     GPIOC->ODR |= 1<<5;
+}
+
+void set_arrays() {
+    for(int i = 0; i < 32; i++) {
+        arr1[i] = 0;
+        arr2[i] = 0;
+        arr3[i] = 0;
+        arr4[i] = 0;
+    }
 }
 
 void set_color(int r0, int g0, int b0, int r1, int g1, int b1) {
@@ -89,13 +103,44 @@ void set_row(int num) {
     GPIOC->ODR |= (C<<5);
 }
 
-void full_clock(int min, int max) {
+void full_clock(int row) {
     for(int i = 0; i<32; i++){
-        if(i >= min && i <= max) {
-            set_color(1, 0, 0, 1, 0, 0);
-        } else {
-            set_color(0, 0, 0, 0, 0, 0);
+        int r0 = 0;
+        int g0 = 0;
+        int b0 = 0;
+        int r1 = 0;
+        int b1 = 0;
+        int g1 = 0;
+        int j = 0;
+        while (j < 32) {
+            if (row >=0 && row <=2) {
+                if (arr4[j] - 5 == i) {
+                    r0 = 1;
+                    g0 = 1;
+                    b0 = 1;
+                }
+                if (arr2[j] - 5 == i) {
+                    r1 = 1;
+                    g1 = 1;
+                    b1 = 1;
+
+                }
+            }
+            if (row >=4 && row <=6) {
+                if (arr3[j] - 5 == i) {
+                    r0 = 1;
+                    g0 = 1;
+                    b0 = 1;
+                }
+                if (arr1[j] - 5 == i) {
+                    r1 = 1;
+                    g1 = 1;
+                    b1 = 1;
+                }
+            }
+            j++;
         }
+        set_color(r0, g0, b0, r1, g1, b1);
         pulse_clock();
     }
     pulse_latch();
@@ -109,38 +154,131 @@ void pulse_latch(void) {
     nano_wait(5);
 }
 
+void send_it(int num) {
+    int i = 0;
+    if (num == 1) {
+        while(i <= 27) {
+            if (arr1[i] == 0 && arr1[i + 1] == 0 && arr1[i + 2] == 0 && arr1[i + 3] == 0 && arr1[i + 4] == 0) {
+                arr1[i] = 1;
+                arr1[i+1] = 2;
+                arr1[i+2] = 3;
+                arr1[i+3] = 4;
+                arr1[i+4] = 5;
+                break;
+            }
+            i++;
+        }
+    } else if (num == 2) {
+        while(i <= 27) {
+            if (arr2[i] == 0 && arr2[i + 1] == 0 && arr2[i + 2] == 0 && arr2[i + 3] == 0 && arr2[i + 4] == 0) {
+                arr2[i] = 1;
+                arr2[i+1] = 2;
+                arr2[i+2] = 3;
+                arr2[i+3] = 4;
+                arr2[i+4] = 5;
+                break;
+            }
+            i++;
+        }
+    } else if (num == 3) {
+        while(i <= 27) {
+            if (arr3[i] == 0 && arr3[i + 1] == 0 && arr3[i + 2] == 0 && arr3[i + 3] == 0 && arr3[i + 4] == 0) {
+                arr3[i] = 1;
+                arr3[i+1] = 2;
+                arr3[i+2] = 3;
+                arr3[i+3] = 4;
+                arr3[i+4] = 5;
+                break;
+            }
+            i++;
+        }
+    } else if (num == 4) {
+        while(i <= 27) {
+            if (arr4[i] == 0 && arr4[i + 1] == 0 && arr4[i + 2] == 0 && arr4[i + 3] == 0 && arr4[i + 4] == 0) {
+                arr4[i] = 1;
+                arr4[i+1] = 2;
+                arr4[i+2] = 3;
+                arr4[i+3] = 4;
+                arr4[i+4] = 5;
+                break;
+            }
+            i++;
+        }
+    } else {
+        num = 0;
+    }
+}
+
+void move_it() {
+    for(int i = 0; i < 32; i++){
+        if (arr1[i] > 0){
+            arr1[i]++;
+            if (arr1[i] > 36) {
+                arr1[i] = 0;
+            }
+        }
+        if (arr2[i] > 0){
+            arr2[i]++;
+            if (arr2[i] > 36) {
+                arr2[i] = 0;
+            }
+        }
+        if (arr3[i] > 0){
+            arr3[i]++;
+            if (arr3[i] > 36) {
+                arr3[i] = 0;
+            }
+        }
+        if (arr4[i] > 0){
+            arr4[i]++;
+            if (arr4[i] > 36) {
+            arr4[i] = 0;
+        }
+        }
+        
+    }
+}
+
 int main(void) {
     internal_clock();
     enable_ports();
+    set_arrays();
+    int music[18] = {1, 2, 3, 4, 3, 2, 1, 2, 4, 3, 2, 1, 4, 3, 1, 2, 3, 4}; // Make sure to change the l > music length - 1 value in line 271
     int i = 0;
     int arr[6] = {0, 1, 2, 4, 5, 6};
     int j = 0;
-    int min = 0; 
-    int max = 4;
+    int k = 0;
+    int l = 0;
     while(1) {
         GPIOC->ODR |= 1<<7;
         set_row(arr[i]);
-        full_clock(min, max);
+        full_clock(arr[i]);
         GPIOC->ODR &= ~(1<<7);
         i++;
         i %=6;
         nano_wait(50000);
         j++;
-        if(j > 1000){
+        if(j > 100){
             j = 0;
-            min++;
-            max++;
-            if (max == 32) {
-                max = 4; 
-                min = 0;
+            move_it();
+            k++;
+            if (k>4) {
+                k = 0;
+                send_it(music[l]);
+                l++;
+                if (l > 17) {
+                    l = 0;
+                }
             }
         }
     }
+}
 
 
 //===========================================================================
 // Write Seven Segment Display Stuff - a lot of it's what we did for lab 3
 //===========================================================================
+/*
 void show_char(int n, char c) {
 
   if((n>=0)&&(n<=7))
@@ -166,13 +304,15 @@ void write_display() {
      snprintf(disp, 9, "End Score: %4d", score);
   }
 }
-
+*/
 //===========================================================================
 // Update Score & Timer 14 Stuff
 //===========================================================================
+/*
 void update_score() {
     score += points; //update score by number of points per note, class before each write_display in timer 14
 }
+
 void TIM14_IRQHandler(void) {
     // Acknowledge the interrupt
     TIM14 -> SR &= ~TIM_SR_UIF;
@@ -191,10 +331,11 @@ void setup_tim14() {
     NVIC_EnableIRQ(TIM14_IRQn);
     TIM14->CR1 |= TIM_CR1_CEN;
 }
-
+*/
 //===========================================================================
 // Mode Stuff --- Depends on what buttons we're using
 //===========================================================================
+/*
 void mode_select(char key) {
     // if key == 'A'/'B'/'C', set mode to key
     if((key == 'A')){
@@ -207,7 +348,7 @@ void mode_select(char key) {
      mode = 'End';
     }
 }
-
+*/
 
 
 /*
