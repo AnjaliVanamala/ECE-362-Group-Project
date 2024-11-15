@@ -239,16 +239,32 @@ void move_it() {
     }
 }
 
+void setup_dac(void) {
+    RCC->AHBENR |= RCC_AHBENR_GPIOAEN;
+    GPIOA->MODER |= GPIO_MODER_MODER4;
+    RCC->APB1ENR |= RCC_APB1ENR_DACEN;
+    
+    // Enable the trigger for the DAC.
+    //DAC->CR |= DAC_CR_TEN1;
+    
+    // Enable the DAC.
+    DAC->CR |= DAC_CR_EN1;
+}
+
+
+
 int main(void) {
     internal_clock();
     enable_ports();
     set_arrays();
+    setup_dac();
     int music[18] = {1, 2, 3, 4, 3, 2, 1, 2, 4, 3, 2, 1, 4, 3, 1, 2, 3, 4}; // Make sure to change the l > music length - 1 value in line 271
     int i = 0;
     int arr[6] = {0, 1, 2, 4, 5, 6};
     int j = 0;
     int k = 0;
     int l = 0;
+    //DAC->DHR8R1 |= 0b1;  Make single beep
     while(1) {
         GPIOC->ODR |= 1<<7;
         set_row(arr[i]);
