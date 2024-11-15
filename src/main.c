@@ -60,10 +60,12 @@ void enable_ports(void) {
         GPIOC->MODER |= (1 << i*2);
     }
     GPIOC->OTYPER &= ~0xfff;
-    //GPIOC->ODR |= 1<<7;
+    GPIOC->ODR |= 1<<7;
     GPIOC->ODR &= ~(1<<6 | 1<<11);
-    GPIOC->ODR |= 1<<4;
-    GPIOC->ODR |= 1<<5;
+    RCC->AHBENR |= RCC_AHBENR_GPIOBEN;
+    GPIOB->MODER &= ~(3<<0 | 3<<2 | 3<<12 | 3<<14);
+    GPIOB->PUPDR |= (2<<0 | 2<<2 | 2<<12 | 2<<14);
+
 }
 
 void set_arrays() {
@@ -251,7 +253,42 @@ void setup_dac(void) {
     DAC->CR |= DAC_CR_EN1;
 }
 
-
+void check_points() {
+    if ((GPIOB->IDR & 1<<6)) {
+        for (int i = 0; i < 32; i++) {
+            if (arr1[i] == 33) {
+                score += 1;
+                if (i < 29) {
+                    if((arr1[i+2] == 35) && (arr1[i-2] = 31)) {
+                        score+=1;
+                    }
+                }
+            } 
+        }
+        for (int i = 0; i < 32; i++) {
+            if(arr1[i] > 29) {
+                arr1[i] = 0;
+            }
+        }
+    }
+    if ((GPIOB->IDR & 1<<7)) {
+        for (int i = 0; i < 32; i++) {
+            if (arr2[i] == 33) {
+                score += 1;
+                if (i < 29) {
+                    if((arr2[i+2] == 35) && (arr2[i-2] = 31)) {
+                        score+=1;
+                    }
+                }
+            } 
+        }
+        for (int i = 0; i < 32; i++) {
+            if(arr2[i] > 29) {
+                arr2[i] = 0;
+            }
+        }
+    }
+}
 
 int main(void) {
     internal_clock();
@@ -265,28 +302,39 @@ int main(void) {
     int k = 0;
     int l = 0;
     //DAC->DHR8R1 |= 0b1;  Make single beep
+    
+    
     while(1) {
         GPIOC->ODR |= 1<<7;
-        set_row(arr[i]);
-        full_clock(arr[i]);
-        GPIOC->ODR &= ~(1<<7);
-        i++;
-        i %=6;
-        nano_wait(50000);
-        j++;
-        if(j > 100){
-            j = 0;
-            move_it();
-            k++;
-            if (k>4) {
-                k = 0;
-                send_it(music[l]);
-                l++;
-                if (l > 17) {
-                    l = 0;
+        set_arrays();
+        while(!(GPIOB->IDR & 1<<6)) {
+
+        }
+        l = 0;
+        while(l < 28) {
+            GPIOC->ODR |= 1<<7;
+            set_row(arr[i]);
+            full_clock(arr[i]);
+            GPIOC->ODR &= ~(1<<7);
+            i++;
+            i %=6;
+            nano_wait(50000);
+            j++;
+            if(j > 100){
+                check_points();
+                j = 0;
+                move_it();
+                k++;
+                if (k>4) {
+                    k = 0;
+                    if (l < 18) {
+                        send_it(music[l]);
+                    }
+                    l++;
                 }
             }
         }
+        
     }
 }
 
