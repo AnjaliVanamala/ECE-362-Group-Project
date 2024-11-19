@@ -16,14 +16,11 @@ const char* username = "avanamal";
 /*******************************************************************************/ 
 
 #include "stm32f0xx.h"
-#include "ff.h"
-#include "diskio.h"
 #include <stdio.h>
 #include <string.h>
-#include <stdlib.h>
+#include <math.h>
 #include <stdint.h>
-#include <string.h>
-#pragma pack(push, 1) // Disable padding to ensure proper alignment for the struct
+/*#pragma pack(push, 1) // Disable padding to ensure proper alignment for the struct
 typedef struct {
     char riff[4];        // "RIFF"
     uint32_t chunkSize;  // Size of the file minus 8 bytes for the "RIFF" and "chunkSize"
@@ -39,14 +36,8 @@ typedef struct {
     char data[4];        // "data"
     uint32_t dataSize;   // Size of the data chunk
 } WavHeader;
-#pragma pack(pop)
-#define N 1000
-#define RATE 20000
-int step0 = 0;
-int offset0 = 0;
-int step1 = 0;
-int offset1 = 0;
-uint32_t volume = 2048;
+#pragma pack(pop)*/
+
 
 void nano_wait(unsigned int);
 void internal_clock();
@@ -271,6 +262,37 @@ void move_it() {
         
     }
 }
+#define N 1000
+#define RATE 20000
+short int wavetable[N];
+int step0 = 0;
+int offset0 = 0;
+int step1 = 0;
+int offset1 = 0;
+uint32_t volume = 2048;
+
+void init_wavetable(void) {
+    for(int i=0; i < N; i++) {
+        wavetable[i] = 32767 * sin(2 * M_PI * i / N);
+    }
+}
+
+void set_freq(int chan, float f) {
+    if (chan == 0) {
+        if (f == 0.0) {
+            step0 = 0;
+            offset0 = 0;
+        } else
+            step0 = ((f * N) / RATE) * (1<<16);
+    }
+    if (chan == 1) {
+        if (f == 0.0) {
+            step1 = 0;
+            offset1 = 0;
+        } else
+            step1 = (f * N / RATE) * (1<<16);
+    }
+}
 
 void setup_dac(void) {
     RCC->AHBENR |= RCC_AHBENR_GPIOAEN;
@@ -278,29 +300,41 @@ void setup_dac(void) {
     RCC->APB1ENR |= RCC_APB1ENR_DACEN;
     
     // Enable the trigger for the DAC.
+    DAC->CR &= ~DAC_CR_TSEL1;
     DAC->CR |= DAC_CR_TEN1;
     
     // Enable the DAC.
     DAC->CR |= DAC_CR_EN1;
 }
 
+void TIM6_DAC_IRQHandler () {
+    TIM6->SR &= ~TIM_SR_UIF;
+    offset0 += step0;
+    offset1 += step1;
+    if (offset0 >= (N << 16)){
+        offset0 -= (N << 16);
+    }
+    if (offset1 >= (N << 16)){
+        offset1 -= (N << 16);
+    }
+
+    int samp = wavetable[offset0 >> 16] + wavetable[offset1 >> 16];
+    samp = samp * volume;
+    samp = samp >> 17;
+    samp += 2048;
+    DAC->DHR12R1 = samp;
+}
+
 void init_tim6(void) {
     RCC->APB1ENR |= RCC_APB1ENR_TIM6EN;
-    TIM6->PSC = (48000000 / RATE) - 1;
-    TIM6->ARR = 0;
+    TIM6->PSC = (1000000 / RATE) - 1;
+    TIM6->ARR = 48-1;
     TIM6->DIER |= TIM_DIER_UIE;
     TIM6->CR2 |= TIM_CR2_MMS_1; // TRGO on Update event
     TIM6->CR1 |= TIM_CR1_CEN;
     NVIC->ISER[0] = 1 << TIM6_DAC_IRQn;
 }
-
-void TIM6_DAC_IRQHandler () {
-    TIM6->SR &= ~TIM_SR_UIF;
-    //DAC->DHR12R1 = sample[count];
-    //count += 1;
-}
-
-int read_wav(const char *filename, int16_t **out_samples, size_t *out_num_samples) {
+/*int read_wav(const char *filename, int16_t **out_samples, size_t *out_num_samples) {
     FILE *file = fopen(filename, "rb");
     if (!file) {
         perror("Failed to open WAV file");
@@ -347,6 +381,22 @@ int read_wav(const char *filename, int16_t **out_samples, size_t *out_num_sample
     return 0;
 }
 
+void init_tim6(void) {
+    RCC->APB1ENR |= RCC_APB1ENR_TIM6EN;
+    TIM6->PSC = (48000000 / RATE) - 1;
+    TIM6->ARR = 0;
+    TIM6->DIER |= TIM_DIER_UIE;
+    TIM6->CR2 |= TIM_CR2_MMS_1; // TRGO on Update event
+    TIM6->CR1 |= TIM_CR1_CEN;
+    NVIC->ISER[0] = 1 << TIM6_DAC_IRQn;
+}
+
+void TIM6_DAC_IRQHandler () {
+    TIM6->SR &= ~TIM_SR_UIF;
+    //DAC->DHR12R1 = samples[count];
+    //count += 1;
+}*/
+
 void check_points() {
     if ((GPIOB->IDR & 1<<6)) {
         for (int i = 0; i < 32; i++) {
@@ -388,27 +438,42 @@ int main(void) {
     internal_clock();
     enable_ports();
     set_arrays();
-    setup_dac();
     int music[18] = {1, 2, 3, 4, 3, 2, 1, 2, 4, 3, 2, 1, 4, 3, 1, 2, 3, 4}; // Make sure to change the l > music length - 1 value in line 271
     int i = 0;
     int arr[6] = {0, 1, 2, 4, 5, 6};
     int j = 0;
     int k = 0;
     int l = 0;
-    //DAC->DHR8R1 |= 0b1; make single beep
-    const char *filename = "twinkle.wav";  // Replace with your .wav file path
+    /*const char *filename = "twinkle.wav";  // Replace with your .wav file path
     int16_t *samples = NULL;
     size_t num_samples = 0;
-
     read_wav(filename, &samples, &num_samples);
-    for (size_t g = 0; g < num_samples; g++) {
-        DAC->DHR12R1 |= samples[g];
-        while (!(DAC->SR & DAC_SR_DMAUDR1));
-        nano_wait(1000);
+    RCC->AHBENR |= RCC_AHBENR_GPIOAEN;
+    GPIOA->MODER |= 3<<(2*4);
+    RCC->APB1ENR |= RCC_APB1ENR_DACEN;
+    DAC->CR &= ~DAC_CR_EN1;
+    DAC->CR &= ~DAC_CR_BOFF1;
+    DAC->CR |= DAC_CR_TEN1;
+    DAC->CR |= DAC_CR_TSEL1;
+    DAC->CR |= DAC_CR_EN1;
+    int x = 0;
+    for (;;) {
+        while((DAC->SWTRIGR & DAC_SWTRIGR_SWTRIG1) == DAC_SWTRIGR_SWTRIG1);
+        DAC->DHR12R1 = samples[x];
+        DAC->SWTRIGR |= DAC_SWTRIGR_SWTRIG1;
+        x = (x + 1) & 0xfff;
+        nano_wait(100000);
     }
+    free(samples);*/
+    init_wavetable();
+    setup_dac();
+    set_freq(0,440.0);
+    init_tim6();
+    // for(;;) {
+    // }
 
-    free(samples);
-    
+    for(;;);
+
     while(1) {
         GPIOC->ODR |= 1<<7;
         set_arrays();
