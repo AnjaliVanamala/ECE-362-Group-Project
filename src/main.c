@@ -40,6 +40,13 @@ typedef struct {
     uint32_t dataSize;   // Size of the data chunk
 } WavHeader;
 #pragma pack(pop)
+#define N 1000
+#define RATE 20000
+int step0 = 0;
+int offset0 = 0;
+int step1 = 0;
+int offset1 = 0;
+uint32_t volume = 2048;
 
 void nano_wait(unsigned int);
 void internal_clock();
@@ -271,47 +278,26 @@ void setup_dac(void) {
     RCC->APB1ENR |= RCC_APB1ENR_DACEN;
     
     // Enable the trigger for the DAC.
-    //DAC->CR |= DAC_CR_TEN1;
+    DAC->CR |= DAC_CR_TEN1;
     
     // Enable the DAC.
     DAC->CR |= DAC_CR_EN1;
 }
 
-void init_spi1_slow() {
-    RCC->AHBENR |= RCC_AHBENR_GPIOBEN; //Enable GPIOB Clock
-    RCC->APB2ENR |= RCC_APB2ENR_SPI1EN; //Enable SPI1 Clock
-
-    GPIOB->MODER &= ~(GPIO_MODER_MODER3 | GPIO_MODER_MODER4 | GPIO_MODER_MODER5); //Reset GPIO Pins
-    GPIOB->MODER |= GPIO_MODER_MODER3_1 | GPIO_MODER_MODER4_1 | GPIO_MODER_MODER5_1; //Set GPIO Pins to AF Mode
-    GPIOB->AFR[0] &= ~(GPIO_AFRL_AFRL3 | GPIO_AFRL_AFRL4 | GPIO_AFRL_AFRL5); //AFRH Alternate Function Mode 1
-    GPIOB->AFR[0] |= (0 << GPIO_AFRL_AFRL3_Pos) | (0 << GPIO_AFRL_AFRL4_Pos) | (0 << GPIO_AFRL_AFRL5_Pos); //Alternate Function Mode 2
-
-    SPI1->CR1 = SPI_CR1_MSTR | SPI_CR1_BR | SPI_CR1_SSM | SPI_CR1_SSI; //Enable Master Selection, Software Slave Management, Baude Rate, Initial Slave Select
-    SPI1->CR2 = SPI_CR2_FRXTH | SPI_CR2_DS_2 | SPI_CR2_DS_1 | SPI_CR2_DS_0; //Set SPI1 Data Rate and FIFO 
-    SPI1->CR1 |= SPI_CR1_SPE; //Enable SPI1 CLock
+void init_tim6(void) {
+    RCC->APB1ENR |= RCC_APB1ENR_TIM6EN;
+    TIM6->PSC = (48000000 / RATE) - 1;
+    TIM6->ARR = 0;
+    TIM6->DIER |= TIM_DIER_UIE;
+    TIM6->CR2 |= TIM_CR2_MMS_1; // TRGO on Update event
+    TIM6->CR1 |= TIM_CR1_CEN;
+    NVIC->ISER[0] = 1 << TIM6_DAC_IRQn;
 }
 
-void enable_sdcard() {
-    GPIOB->BSRR = 0b1 << 18; //GPIO pin low to set sd card
-}
-
-void disable_sdcard() {
-    GPIOB->BSRR = 0b1 << 2; //Set pin high to disable sd card
-}
-
-void init_sdcard_io() {
-    init_spi1_slow(); //Call
-    RCC->AHBENR |= RCC_AHBENR_GPIOBEN; //Enable the GPIOB Register
-    GPIOB->MODER &= ~GPIO_MODER_MODER2; //Reset GPIO Pin 2
-    GPIOB->MODER |= GPIO_MODER_MODER2_0; //Set as output
-    disable_sdcard(); //Call
-}
-
-void sdcard_io_high_speed() {
-    SPI1->CR1 &= ~SPI_CR1_SPE; //Disable SPI1
-    SPI1->CR1 &= ~SPI_CR1_BR; //Baud Rate
-    SPI1->CR1 |= (0b001 << SPI_CR1_BR_Pos); //Baud Rate
-    SPI1->CR1 |= SPI_CR1_SPE; //Enable SPI
+void TIM6_DAC_IRQHandler () {
+    TIM6->SR &= ~TIM_SR_UIF;
+    //DAC->DHR12R1 = sample[count];
+    //count += 1;
 }
 
 int read_wav(const char *filename, int16_t **out_samples, size_t *out_num_samples) {
@@ -415,9 +401,12 @@ int main(void) {
     size_t num_samples = 0;
 
     read_wav(filename, &samples, &num_samples);
-    for (int g = 0; g < 1000; g++) {
-        DAC->DHR8R1 |= samples[g];
+    for (size_t g = 0; g < num_samples; g++) {
+        DAC->DHR12R1 |= samples[g];
+        while (!(DAC->SR & DAC_SR_DMAUDR1));
+        nano_wait(1000);
     }
+
     free(samples);
     
     while(1) {
