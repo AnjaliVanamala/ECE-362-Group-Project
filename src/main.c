@@ -407,12 +407,12 @@ void check_points() {
                         score+=1;
                     }
                 }
+                for (int i = 0; i < 32; i++) {
+                    if(arr1[i] > 29) {
+                        arr1[i] = 0;
+                    }
+                }
             } 
-        }
-        for (int i = 0; i < 32; i++) {
-            if(arr1[i] > 29) {
-                arr1[i] = 0;
-            }
         }
     }
     if ((GPIOB->IDR & 1<<7)) {
@@ -424,12 +424,46 @@ void check_points() {
                         score+=1;
                     }
                 }
+                for (int i = 0; i < 32; i++) {
+                    if(arr2[i] > 29) {
+                        arr2[i] = 0;
+                    }
+                }
             } 
         }
+    }
+    if ((GPIOB->IDR & 1<<1)) {
         for (int i = 0; i < 32; i++) {
-            if(arr2[i] > 29) {
-                arr2[i] = 0;
-            }
+            if (arr3[i] == 33) {
+                score += 1;
+                if (i < 29) {
+                    if((arr3[i+2] == 35) && (arr3[i-2] = 31)) {
+                        score+=1;
+                    }
+                }
+                for (int i = 0; i < 32; i++) {
+                    if(arr3[i] > 29) {
+                        arr3[i] = 0;
+                    }
+                }
+            } 
+        }
+    }
+    if ((GPIOB->IDR & 1<<0)) {
+        for (int i = 0; i < 32; i++) {
+            if (arr4[i] == 33) {
+                score += 1;
+                if (i < 29) {
+                    if((arr4[i+2] == 35) && (arr4[i-2] = 31)) {
+                        score+=1;
+                    }
+                }
+                for (int i = 0; i < 32; i++) {
+                    if(arr4[i] > 29) {
+                        arr4[i] = 0;
+                    }
+                }
+            } 
         }
     }
 }
@@ -492,6 +526,7 @@ int main(void) {
             j++;
             if(j > 100){
                 check_points();
+                nano_wait(500);
                 j = 0;
                 move_it();
                 k++;
