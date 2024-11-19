@@ -16,6 +16,8 @@ const char* username = "avanamal";
 /*******************************************************************************/ 
 
 #include "stm32f0xx.h"
+#include "ff.h"
+#include "diskio.h"
 
 void nano_wait(unsigned int);
 void internal_clock();
@@ -253,6 +255,43 @@ void setup_dac(void) {
     DAC->CR |= DAC_CR_EN1;
 }
 
+void init_spi1_slow() {
+    RCC->AHBENR |= RCC_AHBENR_GPIOBEN; //Enable GPIOB Clock
+    RCC->APB2ENR |= RCC_APB2ENR_SPI1EN; //Enable SPI1 Clock
+
+    GPIOB->MODER &= ~(GPIO_MODER_MODER3 | GPIO_MODER_MODER4 | GPIO_MODER_MODER5); //Reset GPIO Pins
+    GPIOB->MODER |= GPIO_MODER_MODER3_1 | GPIO_MODER_MODER4_1 | GPIO_MODER_MODER5_1; //Set GPIO Pins to AF Mode
+    GPIOB->AFR[0] &= ~(GPIO_AFRL_AFRL3 | GPIO_AFRL_AFRL4 | GPIO_AFRL_AFRL5); //AFRH Alternate Function Mode 1
+    GPIOB->AFR[0] |= (0 << GPIO_AFRL_AFRL3_Pos) | (0 << GPIO_AFRL_AFRL4_Pos) | (0 << GPIO_AFRL_AFRL5_Pos); //Alternate Function Mode 2
+
+    SPI1->CR1 = SPI_CR1_MSTR | SPI_CR1_BR | SPI_CR1_SSM | SPI_CR1_SSI; //Enable Master Selection, Software Slave Management, Baude Rate, Initial Slave Select
+    SPI1->CR2 = SPI_CR2_FRXTH | SPI_CR2_DS_2 | SPI_CR2_DS_1 | SPI_CR2_DS_0; //Set SPI1 Data Rate and FIFO 
+    SPI1->CR1 |= SPI_CR1_SPE; //Enable SPI1 CLock
+}
+
+void enable_sdcard() {
+    GPIOB->BSRR = 0b1 << 18; //GPIO pin low to set sd card
+}
+
+void disable_sdcard() {
+    GPIOB->BSRR = 0b1 << 2; //Set pin high to disable sd card
+}
+
+void init_sdcard_io() {
+    init_spi1_slow(); //Call
+    RCC->AHBENR |= RCC_AHBENR_GPIOBEN; //Enable the GPIOB Register
+    GPIOB->MODER &= ~GPIO_MODER_MODER2; //Reset GPIO Pin 2
+    GPIOB->MODER |= GPIO_MODER_MODER2_0; //Set as output
+    disable_sdcard(); //Call
+}
+
+void sdcard_io_high_speed() {
+    SPI1->CR1 &= ~SPI_CR1_SPE; //Disable SPI1
+    SPI1->CR1 &= ~SPI_CR1_BR; //Baud Rate
+    SPI1->CR1 |= (0b001 << SPI_CR1_BR_Pos); //Baud Rate
+    SPI1->CR1 |= SPI_CR1_SPE; //Enable SPI
+}
+
 void check_points() {
     if ((GPIOB->IDR & 1<<6)) {
         for (int i = 0; i < 32; i++) {
@@ -301,9 +340,10 @@ int main(void) {
     int j = 0;
     int k = 0;
     int l = 0;
-    //DAC->DHR8R1 |= 0b1;  Make single beep
+    //DAC->DHR8R1 |= 0b1; make single beep
+    init_sdcard_io();
     
-    
+
     while(1) {
         GPIOC->ODR |= 1<<7;
         set_arrays();
