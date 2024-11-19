@@ -18,6 +18,28 @@ const char* username = "avanamal";
 #include "stm32f0xx.h"
 #include "ff.h"
 #include "diskio.h"
+#include <stdio.h>
+#include <string.h>
+#include <stdlib.h>
+#include <stdint.h>
+#include <string.h>
+#pragma pack(push, 1) // Disable padding to ensure proper alignment for the struct
+typedef struct {
+    char riff[4];        // "RIFF"
+    uint32_t chunkSize;  // Size of the file minus 8 bytes for the "RIFF" and "chunkSize"
+    char wave[4];        // "WAVE"
+    char fmt[4];         // "fmt "
+    uint32_t fmtSize;    // Size of the fmt chunk
+    uint16_t audioFormat; // Audio format (1 = PCM)
+    uint16_t numChannels; // Number of channels (1 = mono, 2 = stereo)
+    uint32_t sampleRate; // Sample rate (e.g., 44100)
+    uint32_t byteRate;   // Byte rate (sampleRate * numChannels * bitsPerSample / 8)
+    uint16_t blockAlign; // Block align (numChannels * bitsPerSample / 8)
+    uint16_t bitsPerSample; // Bits per sample (usually 16)
+    char data[4];        // "data"
+    uint32_t dataSize;   // Size of the data chunk
+} WavHeader;
+#pragma pack(pop)
 
 void nano_wait(unsigned int);
 void internal_clock();
@@ -292,6 +314,53 @@ void sdcard_io_high_speed() {
     SPI1->CR1 |= SPI_CR1_SPE; //Enable SPI
 }
 
+int read_wav(const char *filename, int16_t **out_samples, size_t *out_num_samples) {
+    FILE *file = fopen(filename, "rb");
+    if (!file) {
+        perror("Failed to open WAV file");
+        return -1;
+    }
+
+    // Read the WAV header
+    WavHeader header;
+    if (fread(&header, sizeof(WavHeader), 1, file) != 1) {
+        perror("Failed to read WAV header");
+        fclose(file);
+        return -1;
+    }
+
+    // Check for valid WAV format
+    if (memcmp(header.riff, "RIFF", 4) != 0 || memcmp(header.wave, "WAVE", 4) != 0 ||
+        memcmp(header.fmt, "fmt ", 4) != 0 || memcmp(header.data, "data", 4) != 0) {
+        fprintf(stderr, "Invalid WAV file format\n");
+        fclose(file);
+        return -1;
+    }
+
+    // Allocate memory for the audio samples
+    size_t num_samples = header.dataSize / (header.bitsPerSample / 8);
+    *out_samples = (int16_t *)malloc(header.dataSize);
+    if (*out_samples == NULL) {
+        perror("Failed to allocate memory for samples");
+        fclose(file);
+        return -1;
+    }
+
+    // Read the audio data into the array
+    if (fread(*out_samples, 1, header.dataSize, file) != header.dataSize) {
+        perror("Failed to read audio data");
+        free(*out_samples);
+        fclose(file);
+        return -1;
+    }
+
+    // Return the number of samples
+    *out_num_samples = num_samples;
+
+    fclose(file);
+    return 0;
+}
+
 void check_points() {
     if ((GPIOB->IDR & 1<<6)) {
         for (int i = 0; i < 32; i++) {
@@ -341,9 +410,16 @@ int main(void) {
     int k = 0;
     int l = 0;
     //DAC->DHR8R1 |= 0b1; make single beep
-    init_sdcard_io();
-    
+    const char *filename = "twinkle.wav";  // Replace with your .wav file path
+    int16_t *samples = NULL;
+    size_t num_samples = 0;
 
+    read_wav(filename, &samples, &num_samples);
+    for (int g = 0; g < 1000; g++) {
+        DAC->DHR8R1 |= samples[g];
+    }
+    free(samples);
+    
     while(1) {
         GPIOC->ODR |= 1<<7;
         set_arrays();
