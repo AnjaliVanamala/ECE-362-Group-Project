@@ -62,6 +62,8 @@ int arr2[32];
 int arr3[32]; 
 int arr4[32]; 
 
+int freq[14] = {261.63, 261.63, 392.00, 392.00, 440.00, 440.00, 392.00, 349.23, 349.23, 329.23, 329.23, 293.66, 293.66, 261.63};
+int freqindex = 0;
 
 extern uint8_t mode;
 extern char keymap;
@@ -234,6 +236,7 @@ void send_it(int num) {
 }
 
 void move_it() {
+    
     for(int i = 0; i < 32; i++){
         if (arr1[i] > 0){
             arr1[i]++;
@@ -403,15 +406,16 @@ void check_points() {
             if (arr1[i] == 33) {
                 score += 1;
                 if (i < 29) {
-                    if((arr1[i+2] == 35) && (arr1[i-2] = 31)) {
+                    if((arr1[i+2] == 33) && (arr1[i-2] = 29)) {
                         score+=1;
                     }
                 }
                 for (int i = 0; i < 32; i++) {
-                    if(arr1[i] > 29) {
+                    if(arr1[i] > 28) {
                         arr1[i] = 0;
                     }
                 }
+                break;
             } 
         }
     }
@@ -420,15 +424,16 @@ void check_points() {
             if (arr2[i] == 33) {
                 score += 1;
                 if (i < 29) {
-                    if((arr2[i+2] == 35) && (arr2[i-2] = 31)) {
+                    if((arr2[i+2] == 33) && (arr2[i-2] = 29)) {
                         score+=1;
                     }
                 }
                 for (int i = 0; i < 32; i++) {
-                    if(arr2[i] > 29) {
+                    if(arr2[i] > 28) {
                         arr2[i] = 0;
                     }
                 }
+                break;
             } 
         }
     }
@@ -437,15 +442,16 @@ void check_points() {
             if (arr3[i] == 33) {
                 score += 1;
                 if (i < 29) {
-                    if((arr3[i+2] == 35) && (arr3[i-2] = 31)) {
+                    if((arr3[i+2] == 33) && (arr3[i-2] = 29)) {
                         score+=1;
                     }
                 }
                 for (int i = 0; i < 32; i++) {
-                    if(arr3[i] > 29) {
+                    if(arr3[i] > 28) {
                         arr3[i] = 0;
                     }
                 }
+                break;
             } 
         }
     }
@@ -454,16 +460,27 @@ void check_points() {
             if (arr4[i] == 33) {
                 score += 1;
                 if (i < 29) {
-                    if((arr4[i+2] == 35) && (arr4[i-2] = 31)) {
+                    if((arr4[i+2] == 33) && (arr4[i-2] = 29)) {
                         score+=1;
                     }
                 }
                 for (int i = 0; i < 32; i++) {
-                    if(arr4[i] > 29) {
+                    if(arr4[i] > 28) {
                         arr4[i] = 0;
                     }
                 }
+                break;
             } 
+        }
+    }
+}
+
+void check_end() {
+    for(int i = 0; i < 32; i++) {
+        if (arr1[i] == 31 || arr2[i] == 31 || arr3[i] == 31 || arr4[i] == 31) {
+            set_freq(0, freq[freqindex]);
+            freqindex++;
+            //nano_wait(500);
         }
     }
 }
@@ -472,12 +489,13 @@ int main(void) {
     internal_clock();
     enable_ports();
     set_arrays();
-    int music[18] = {1, 2, 3, 4, 3, 2, 1, 2, 4, 3, 2, 1, 4, 3, 1, 2, 3, 4}; // Make sure to change the l > music length - 1 value in line 271
+    int music[15] = {1, 1, 3, 3, 4, 4, 3, 0, 4, 4, 3, 3, 2, 2, 1}; //twinkle twinkle Make sure to change the l > music length - 1 value in line 271
     int i = 0;
     int arr[6] = {0, 1, 2, 4, 5, 6};
     int j = 0;
     int k = 0;
     int l = 0;
+    
     /*const char *filename = "twinkle.wav";  // Replace with your .wav file path
     int16_t *samples = NULL;
     size_t num_samples = 0;
@@ -498,24 +516,29 @@ int main(void) {
         x = (x + 1) & 0xfff;
         nano_wait(100000);
     }
-    free(samples);*/
+    
+    free(samples);
+    */
     init_wavetable();
-    setup_dac();
-    set_freq(0,440.0);
-    init_tim6();
+    
     // for(;;) {
     // }
-
-    for(;;);
-
+    
+    //for(;;);
+    
     while(1) {
+        setup_dac();
+        //set_freq(0,440.0);
+        set_freq(0,0.0);
+        init_tim6();
         GPIOC->ODR |= 1<<7;
         set_arrays();
         while(!(GPIOB->IDR & 1<<6)) {
-
+            
         }
         l = 0;
-        while(l < 28) {
+        freqindex = 0;
+        while(l < 23) {
             GPIOC->ODR |= 1<<7;
             set_row(arr[i]);
             full_clock(arr[i]);
@@ -524,15 +547,17 @@ int main(void) {
             i %=6;
             nano_wait(50000);
             j++;
+            
             if(j > 100){
                 check_points();
-                nano_wait(500);
+                nano_wait(2000);
                 j = 0;
                 move_it();
                 k++;
-                if (k>4) {
-                    k = 0;
-                    if (l < 18) {
+                if (k>5) {
+                    k = 0;   
+                    check_end();                 
+                    if (l < 15) {
                         send_it(music[l]);
                     }
                     l++;
