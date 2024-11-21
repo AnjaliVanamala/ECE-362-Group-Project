@@ -20,23 +20,6 @@ const char* username = "avanamal";
 #include <string.h>
 #include <math.h>
 #include <stdint.h>
-/*#pragma pack(push, 1) // Disable padding to ensure proper alignment for the struct
-typedef struct {
-    char riff[4];        // "RIFF"
-    uint32_t chunkSize;  // Size of the file minus 8 bytes for the "RIFF" and "chunkSize"
-    char wave[4];        // "WAVE"
-    char fmt[4];         // "fmt "
-    uint32_t fmtSize;    // Size of the fmt chunk
-    uint16_t audioFormat; // Audio format (1 = PCM)
-    uint16_t numChannels; // Number of channels (1 = mono, 2 = stereo)
-    uint32_t sampleRate; // Sample rate (e.g., 44100)
-    uint32_t byteRate;   // Byte rate (sampleRate * numChannels * bitsPerSample / 8)
-    uint16_t blockAlign; // Block align (numChannels * bitsPerSample / 8)
-    uint16_t bitsPerSample; // Bits per sample (usually 16)
-    char data[4];        // "data"
-    uint32_t dataSize;   // Size of the data chunk
-} WavHeader;
-#pragma pack(pop)*/
 
 
 void nano_wait(unsigned int);
@@ -52,10 +35,17 @@ void write_display();
 void update_score();
 void setup_tim14();
 
+//SSD Functions
+void show_char(int n, char c);
+void setup_tim7();
+void write_display();
+void drive_column(int c);
+void scr_2_dsp(void);
+
 //Global Structures for SSD
-char disp[9]         = "Hello...";
-uint8_t mode         = 'A';
 uint8_t score       = 0;
+char disp[9]         = "     Pts";
+uint8_t col          = 0;
 
 int arr1[32]; 
 int arr2[32]; 
@@ -65,15 +55,15 @@ int arr4[32];
 int freq[14] = {261.63, 261.63, 392.00, 392.00, 440.00, 440.00, 392.00, 349.23, 349.23, 329.23, 329.23, 293.66, 293.66, 261.63};
 int freqindex = 0;
 
-extern uint8_t mode;
-extern char keymap;
-extern char disp[9];
+// extern uint8_t mode;
+// extern char keymap;
+// extern char disp[9];
 
-char* keymap_arr = &keymap;
-extern uint8_t font[];
+// char* keymap_arr = &keymap;
+// extern uint8_t font[];
 
 //===========================================================================
-// Configure GPIOC
+// Configure GPIO Pins
 //===========================================================================
 
 void enable_ports(void) {
@@ -90,6 +80,14 @@ void enable_ports(void) {
     GPIOB->MODER &= ~(3<<0 | 3<<2 | 3<<12 | 3<<14);
     GPIOB->PUPDR |= (2<<0 | 2<<2 | 2<<12 | 2<<14);
 
+    //SDD ports - sets all pins used to outputs
+    for(int i = 8; i<=10; i++) {
+        GPIOB->MODER |= (1 << i*2);
+    }
+    RCC->AHBENR |= RCC_AHBENR_GPIOAEN;
+    for(int i = 5; i<=12; i++) {
+        GPIOA->MODER |= (1 << i*2);
+    }
 }
 
 void set_arrays() {
@@ -337,68 +335,6 @@ void init_tim6(void) {
     TIM6->CR1 |= TIM_CR1_CEN;
     NVIC->ISER[0] = 1 << TIM6_DAC_IRQn;
 }
-/*int read_wav(const char *filename, int16_t **out_samples, size_t *out_num_samples) {
-    FILE *file = fopen(filename, "rb");
-    if (!file) {
-        perror("Failed to open WAV file");
-        return -1;
-    }
-
-    // Read the WAV header
-    WavHeader header;
-    if (fread(&header, sizeof(WavHeader), 1, file) != 1) {
-        perror("Failed to read WAV header");
-        fclose(file);
-        return -1;
-    }
-
-    // Check for valid WAV format
-    if (memcmp(header.riff, "RIFF", 4) != 0 || memcmp(header.wave, "WAVE", 4) != 0 ||
-        memcmp(header.fmt, "fmt ", 4) != 0 || memcmp(header.data, "data", 4) != 0) {
-        fprintf(stderr, "Invalid WAV file format\n");
-        fclose(file);
-        return -1;
-    }
-
-    // Allocate memory for the audio samples
-    size_t num_samples = header.dataSize / (header.bitsPerSample / 8);
-    *out_samples = (int16_t *)malloc(header.dataSize);
-    if (*out_samples == NULL) {
-        perror("Failed to allocate memory for samples");
-        fclose(file);
-        return -1;
-    }
-
-    // Read the audio data into the array
-    if (fread(*out_samples, 1, header.dataSize, file) != header.dataSize) {
-        perror("Failed to read audio data");
-        free(*out_samples);
-        fclose(file);
-        return -1;
-    }
-
-    // Return the number of samples
-    *out_num_samples = num_samples;
-
-    fclose(file);
-    return 0;
-}
-
-void init_tim6(void) {
-    RCC->APB1ENR |= RCC_APB1ENR_TIM6EN;
-    TIM6->PSC = (48000000 / RATE) - 1;
-    TIM6->ARR = 0;
-    TIM6->DIER |= TIM_DIER_UIE;
-    TIM6->CR2 |= TIM_CR2_MMS_1; // TRGO on Update event
-    TIM6->CR1 |= TIM_CR1_CEN;
-    NVIC->ISER[0] = 1 << TIM6_DAC_IRQn;
-}
-
-void TIM6_DAC_IRQHandler () {
-    TIM6->SR &= ~TIM_SR_UIF;
-    //DAC->DHR12R1 = samples[count];
-    //count += 1;
-}*/
 
 void check_points() {
     if ((GPIOB->IDR & 1<<6)) {
@@ -533,11 +469,13 @@ int main(void) {
         init_tim6();
         GPIOC->ODR |= 1<<7;
         set_arrays();
+        setup_tim7();
         while(!(GPIOB->IDR & 1<<6)) {
             
         }
         l = 0;
         freqindex = 0;
+        score = 0;
         while(l < 23) {
             GPIOC->ODR |= 1<<7;
             set_row(arr[i]);
@@ -568,415 +506,119 @@ int main(void) {
     }
 }
 
+//////////////////////////////////////////////////////////////////////////////////////////////
+//SSD CODE BELOW THIS LINE (OTHER THAN IN ENABLE PORTS)
+//////////////////////////////////////////////////////////////////////////////////////////////
+//Font array_____________________________________________________________________________________
+const char font[] = {
+    0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01,
+    0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01,
+    0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01,
+    0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01,
+    0x00, // 32: space
+    0x86, // 33: exclamation
+    0x22, // 34: double quote
+    0x76, // 35: octothorpe
+    0x00, // dollar
+    0x00, // percent
+    0x00, // ampersand
+    0x20, // 39: single quote
+    0x39, // 40: open paren
+    0x0f, // 41: close paren
+    0x49, // 42: asterisk
+    0x00, // plus
+    0x10, // 44: comma
+    0x40, // 45: minus
+    0x80, // 46: period
+    0x00, // slash
+    // digits
+    0x3f, 0x06, 0x5b, 0x4f, 0x66, 0x6d, 0x7d, 0x07, 0x7f, 0x67,
+    // seven unknown
+    0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01,
+    // Uppercase
+    0x77, 0x7c, 0x39, 0x5e, 0x79, 0x71, 0x6f, 0x76, 0x30, 0x1e, 0x00, 0x38, 0x00,
+    0x37, 0x3f, 0x73, 0x7b, 0x31, 0x6d, 0x78, 0x3e, 0x00, 0x00, 0x00, 0x6e, 0x00,
+    0x39, // 91: open square bracket
+    0x00, // backslash
+    0x0f, // 93: close square bracket
+    0x00, // circumflex
+    0x08, // 95: underscore
+    0x20, // 96: backquote
+    // Lowercase
+    0x5f, 0x7c, 0x58, 0x5e, 0x79, 0x71, 0x6f, 0x74, 0x10, 0x0e, 0x00, 0x30, 0x00,
+    0x54, 0x5c, 0x73, 0x7b, 0x50, 0x6d, 0x78, 0x1c, 0x00, 0x00, 0x00, 0x6e, 0x00
+};
 
-//===========================================================================
-// Write Seven Segment Display Stuff - a lot of it's what we did for lab 3
-//===========================================================================
-/*
+//Show character function - may need to change GPIO stuff?___________________________________
 void show_char(int n, char c) {
 
   if((n>=0)&&(n<=7))
   {
-    GPIOB->ODR &= ~0x07FF;
-    GPIOB->ODR |= n << 8;
+    // GPIOB->ODR &= ~0x07FF; //0000 0111 1111 1111 -> 0000 1111 1110 0000 = 0x0FE0, need to do for gpiob too for pb8-10 -> 0000 0111 0000 0000 = 0x0700
+    GPIOA->ODR &= ~0x0FE0;
+    GPIOB->ODR &= ~0x0700;
+    GPIOB->ODR |= n << 8; 
     
-    GPIOB->ODR |= font[c];
+    GPIOA->ODR |= font[c] << 5; 
   }
   else{
     return;
   }
 }
 
-void write_display() {
-  if(mode == 'Start'){
-      snprintf(disp, 9, "Start"); //for all of the stuff we're printing, we need to come up with diff displays to fit on ssd
-  }
-  else if(mode == 'Run'){
-      snprintf(disp, 9, "Current Score: %4d", score);
-  }
-  else if(mode == 'End'){
-     snprintf(disp, 9, "End Score: %4d", score);
-  }
-}
-*/
-//===========================================================================
-// Update Score & Timer 14 Stuff
-//===========================================================================
-/*
-void update_score() {
-    score += points; //update score by number of points per note, class before each write_display in timer 14
+// // Drive Column - may need to change GPIO stuff?______________________________________________
+// void drive_column(int c) {
+// //   c = least 2 bits of c
+//     c &= (0x03);
+// //   first clear the bits 4-7 of GPIOC 
+//     GPIOC->BSRR |= (1<<(4+16));
+//     GPIOC->BSRR |= (1<<(5+16));
+//     GPIOC->BSRR |= (1<<(6+16));
+//     GPIOC->BSRR |= (1<<(7+16));
+// //   then set the bits corresponding to the column `c`
+//     GPIOC->BSRR |= (1<<(c+4));
+// }
+
+//Score to Display Converter________________________________________________________________
+void scr_2_dsp(void){
+    snprintf(disp, 9, "%d", score);
 }
 
-void TIM14_IRQHandler(void) {
-    // Acknowledge the interrupt
-    TIM14 -> SR &= ~TIM_SR_UIF;
-    // call update_score
-    update_score();
-    // call write_display
-    write_display();
-}
-void setup_tim14() {
-// And then implement the function setup_tim14 to initialize Timer 14 to invoke an update interrupt twice per second (2 Hz). 
-// This will be used to update the game state and display 2 times a second
-    RCC->APB1ENR |= RCC_APB1ENR_TIM14EN;
-    TIM14->ARR = 1000-1;
-    TIM14->PSC = 24000-1; 
-    TIM14->DIER |= TIM_DIER_UIE;
-    NVIC_EnableIRQ(TIM14_IRQn);
-    TIM14->CR1 |= TIM_CR1_CEN;
-}
-*/
-//===========================================================================
-// Mode Stuff --- Depends on what buttons we're using
-//===========================================================================
-/*
-void mode_select(char key) {
-    // if key == 'A'/'B'/'C', set mode to key
-    if((key == 'A')){
-     mode = 'Start';
-    }
-    else if((key == 'B')){
-     mode = 'Run';
-    }
-    else if((key == 'C')){
-     mode = 'End';
-    }
-}
-*/
+//Timer 7 Stuff______________________________________________________________________________
+void TIM7_IRQHandler(){
+// acknowledge the interrupt first
+TIM7 -> SR &= ~TIM_SR_UIF;
 
+// Get character from the `disp` string at position `col`
+// show the character at column `col`
+scr_2_dsp();
 
-/*
-void drive_column(int);   // energize one of the column outputs
-int  read_rows();         // read the four row inputs
-void update_history(int col, int rows); // record the buttons of the driven column
-char get_key_event(void); // wait for a button event (press or release)
-char get_keypress(void);  // wait for only a button press event.
-float getfloat(void);     // read a floating-point number from keypad
-void show_keys(void);     // demonstrate get_key_event()
-*/
-//===========================================================================
-// Bit Bang SPI LED Array
-//===========================================================================
-/*
-int msg_index = 0;
-uint16_t msg[8] = { 0x0000,0x0100,0x0200,0x0300,0x0400,0x0500,0x0600,0x0700 };
-extern const char font[];
-
-//===========================================================================
-// Configure PB12 (CS), PB13 (SCK), and PB15 (SDI) for outputs
-//===========================================================================
-void setup_bb(void) {
-    RCC->AHBENR |= RCC_AHBENR_GPIOBEN;
-    GPIOB->MODER &= ~((3 << 24) | (3 << 26) | (3 << 30));
-    GPIOB->MODER |= ((1 << 24) | (1 << 26) | (1 << 30));
-    GPIOB->ODR |= (1 << 12);
-    GPIOB->ODR &= ~(1 << 13);
+//deals with weird bug
+if((score < 10) && (col == 1)){
+    show_char(2, ' ');
+}
+else if((score >= 10) && (col == 2))
+{
+    show_char(3, ' ');
+}
+else{
+    show_char(col, disp[col]);
 }
 
-void small_delay(void) {
-    nano_wait(50000);
+// increment col by 1, remember to wrap it around if it is > 7
+col++;
+if(col > 7){
+    col = 0;
+}
+// drive the new column
+// drive_column(col);
 }
 
-//===========================================================================
-// Set the MOSI bit, then set the clock high and low.
-// Pause between doing these steps with small_delay().
-//===========================================================================
-void bb_write_bit(int val) {
-    // CS (PB12)
-    // SCK (PB13)
-    // SDI (PB15)
-    if (val) {
-        GPIOB->ODR |= (1 << 15);
-    }
-    else {
-        GPIOB->ODR &= ~(1 << 15);
-    }
-    small_delay();
-    GPIOB->ODR |= (1 << 13);
-    small_delay();
-    GPIOB->ODR &= ~(1 << 13);
-}
-
-//===========================================================================
-// Set CS (PB12) low,
-// write 16 bits using bb_write_bit,
-// then set CS high.
-//===========================================================================
-void bb_write_halfword(int halfword) {
-    GPIOB->ODR &= ~(1 << 12);
-    int temp;
-    for(int i = 15; i >= 0; i--) {
-        temp = halfword;
-        bb_write_bit((temp >> i) & 1);
-    }
-    GPIOB->ODR |= (1 << 12);
-}
-
-//===========================================================================
-// Continually bitbang the msg[] array.
-//===========================================================================
-void drive_bb(void) {
-    for(;;)
-        for(int d=0; d<8; d++) {
-            bb_write_halfword(msg[d]);
-            nano_wait(1000000); // wait 1 ms between digits
-        }
-}
-
-//============================================================================
-// Configure Timer 15 for an update rate of 1 kHz.
-// Trigger the DMA channel on each update.
-// Copy this from lab 4 or lab 5.
-//============================================================================
-
-void init_tim15(void) {
-    RCC->APB2ENR |= RCC_APB2ENR_TIM15EN;
-    TIM15->PSC = 480-1;
-    TIM15->ARR = 100-1;
-    TIM15->DIER |= TIM_DIER_UDE;
-    TIM15->CR1 |= TIM_CR1_CEN;
-}
-
-//===========================================================================
-// Configure timer 7 to invoke the update interrupt at 1kHz
-// Copy from lab 4 or 5.
-//===========================================================================
-
-void init_tim7(void) {
+void setup_tim7() {
     RCC->APB1ENR |= RCC_APB1ENR_TIM7EN;
-    TIM7->PSC = 480-1;
-    TIM7->ARR = 100-1;
+    TIM7->ARR = 10-1;
+    TIM7->PSC = 480-1; 
     TIM7->DIER |= TIM_DIER_UIE;
     NVIC_EnableIRQ(TIM7_IRQn);
     TIM7->CR1 |= TIM_CR1_CEN;
 }
-
-//===========================================================================
-// Copy the Timer 7 ISR from lab 5
-//===========================================================================
-// TODO To be copied
-
-void TIM7_IRQHandler(void) {
-    TIM7->SR &= ~TIM_SR_UIF;
-    int rows = read_rows();
-    update_history(col, rows);
-    col = (col + 1) & 3;
-    drive_column(col);
-}
-
-//===========================================================================
-// Initialize the SPI2 peripheral.
-//===========================================================================
-void init_spi2(void) {
-    RCC->APB1ENR |= RCC_APB1ENR_SPI2EN;
-    RCC->AHBENR |= RCC_AHBENR_GPIOBEN;
-    GPIOB->MODER &= ~((3 << 24) | (3 << 26) | (3 << 30));
-    GPIOB->MODER |= (2 << 24) | (2 << 26) | (2 << 30);
-    GPIOB->AFR[1] &= ~(0b1111 << 16 | 0b1111 << 20 | 0b1111 << 28);
-    SPI2->CR1 &= ~SPI_CR1_SPE;
-    SPI2->CR1 |= SPI_CR1_BR_0 | SPI_CR1_BR_1 | SPI_CR1_BR_2;
-    SPI2->CR2 = SPI_CR2_DS_0 | SPI_CR2_DS_1 | SPI_CR2_DS_2 | SPI_CR2_DS_3;
-    SPI2->CR1 |= SPI_CR1_MSTR;
-    SPI2->CR2 |= SPI_CR2_SSOE | SPI_CR2_NSSP;
-    SPI2->CR2 |= SPI_CR2_TXDMAEN;
-    SPI2->CR1 |= SPI_CR1_SPE;
-}
-
-//===========================================================================
-// Configure the SPI2 peripheral to trigger the DMA channel when the
-// transmitter is empty.  Use the code from setup_dma from lab 5.
-//===========================================================================
-void spi2_setup_dma(void) {
-    RCC->AHBENR |= RCC_AHBENR_DMA1EN;
-    DMA1_Channel5->CCR &= ~DMA_CCR_EN;
-    DMA1_Channel5->CMAR = (uint32_t)&msg;
-    DMA1_Channel5->CPAR = (uint32_t)&(SPI2->DR);
-    DMA1_Channel5->CNDTR = 8; 
-    DMA1_Channel5->CCR |= DMA_CCR_DIR;
-    DMA1_Channel5->CCR |= DMA_CCR_MINC;
-    DMA1_Channel5->CCR |= DMA_CCR_MSIZE_0;
-    DMA1_Channel5->CCR |= DMA_CCR_PSIZE_0;
-    DMA1_Channel5->CCR |= DMA_CCR_CIRC;
-    SPI2->CR2 |= SPI_CR2_TXDMAEN;
-}
-
-//===========================================================================
-// Enable the DMA channel.
-//===========================================================================
-void spi2_enable_dma(void) {
-    DMA1_Channel5->CCR |= DMA_CCR_EN;
-}
-
-//===========================================================================
-// 4.4 SPI OLED Display
-//===========================================================================
-void init_spi1() {
-    RCC->APB2ENR |= RCC_APB2ENR_SPI1EN;
-    RCC->AHBENR |= RCC_AHBENR_GPIOAEN;
-    GPIOA->MODER &= ~((3 << 30) | (3 << 10) | (3 << 14));
-    GPIOA->MODER |= (2 << 30) | (2 << 10) | (2 << 14);
-    GPIOA->AFR[0] &= ~((0b1111 << 20) | (0b1111 << 28));
-    GPIOA->AFR[1] &= ~(0b1111 << 28);
-    SPI1->CR1 &= ~SPI_CR1_SPE;
-    SPI1->CR1 |= SPI_CR1_BR_0 | SPI_CR1_BR_1 | SPI_CR1_BR_2;
-    SPI1->CR2 = SPI_CR2_DS_0 | SPI_CR2_DS_3;
-    SPI1->CR2 &= ~(SPI_CR2_DS_1 | SPI_CR2_DS_2);
-    SPI1->CR1 |= SPI_CR1_MSTR;
-    SPI1->CR2 |= SPI_CR2_SSOE | SPI_CR2_NSSP;
-    SPI1->CR2 |= SPI_CR2_TXDMAEN;
-    SPI1->CR1 |= SPI_CR1_SPE;
-}
-void spi_cmd(unsigned int data) {
-    while(!(SPI1->SR & SPI_SR_TXE)) {
-
-    }
-    SPI1->DR = data;
-}
-void spi_data(unsigned int data) {
-    spi_cmd(data | 0x200);
-}
-void spi1_init_oled() {
-    nano_wait(1000000);
-    spi_cmd(0x38);
-    spi_cmd(0x08);
-    spi_cmd(0x01);
-    nano_wait(2000000);
-    spi_cmd(0x06);
-    spi_cmd(0x02);
-    spi_cmd(0x0c);
-}
-void spi1_display1(const char *string) {
-    spi_cmd(0x10);
-    int i = 0;
-    char temp = 'a';
-    while (string[i] != '\0') {
-        spi_data(string[i]);
-        temp = string[i];
-        i++;
-    }
-}
-void spi1_display2(const char *string) {
-    spi_cmd(0xc0);
-    int i = 0;
-    while (string[i] != '\0') {
-        spi_data(string[i]);
-        i++;
-    }
-}
-
-//===========================================================================
-// This is the 34-entry buffer to be copied into SPI1.
-// Each element is a 16-bit value that is either character data or a command.
-// Element 0 is the command to set the cursor to the first position of line 1.
-// The next 16 elements are 16 characters.
-// Element 17 is the command to set the cursor to the first position of line 2.
-//===========================================================================
-uint16_t display[34] = {
-        0x002, // Command to set the cursor at the first position line 1
-        0x200+'E', 0x200+'C', 0x200+'E', 0x200+'3', 0x200+'6', + 0x200+'2', 0x200+' ', 0x200+'i',
-        0x200+'s', 0x200+' ', 0x200+'t', 0x200+'h', + 0x200+'e', 0x200+' ', 0x200+' ', 0x200+' ',
-        0x0c0, // Command to set the cursor at the first position line 2
-        0x200+'c', 0x200+'l', 0x200+'a', 0x200+'s', 0x200+'s', + 0x200+' ', 0x200+'f', 0x200+'o',
-        0x200+'r', 0x200+' ', 0x200+'y', 0x200+'o', + 0x200+'u', 0x200+'!', 0x200+' ', 0x200+' ',
-};
-
-//===========================================================================
-// Configure the proper DMA channel to be triggered by SPI1_TX.
-// Set the SPI1 peripheral to trigger a DMA when the transmitter is empty.
-//===========================================================================
-void spi1_setup_dma(void) {
-    RCC->AHBENR |= RCC_AHBENR_DMA1EN;
-    DMA1_Channel3->CCR &= ~DMA_CCR_EN;
-    DMA1_Channel3->CMAR = (uint32_t)&display;
-    DMA1_Channel3->CPAR = (uint32_t)&(SPI1->DR);
-    DMA1_Channel3->CNDTR = 8; 
-    DMA1_Channel3->CCR |= DMA_CCR_DIR;
-    DMA1_Channel3->CCR |= DMA_CCR_MINC;
-    DMA1_Channel3->CCR |= DMA_CCR_MSIZE_0;
-    DMA1_Channel3->CCR |= DMA_CCR_PSIZE_0;
-    DMA1_Channel3->CCR |= DMA_CCR_CIRC;
-    SPI1->CR2 |= SPI_CR2_TXDMAEN;
-}
-
-//===========================================================================
-// Enable the DMA channel triggered by SPI1_TX.
-//===========================================================================
-void spi1_enable_dma(void) {
-    DMA1_Channel3->CCR |= DMA_CCR_EN;
-}
-
-//===========================================================================
-// Main function
-//===========================================================================
-*/
-//int main(void) {
-    //internal_clock();
-    /*
-    msg[0] |= font['E'];
-    msg[1] |= font['C'];
-    msg[2] |= font['E'];
-    msg[3] |= font[' '];
-    msg[4] |= font['3'];
-    msg[5] |= font['6'];
-    msg[6] |= font['2'];
-    msg[7] |= font[' '];
-    */
-    // GPIO enable
-    //enable_ports();
-    //init_tim7();
-    
-    // setup keyboard
-    /*
-    init_tim7();
-
-    // LED array Bit Bang
-//#define BIT_BANG
-#if defined(BIT_BANG)
-    setup_bb();
-    drive_bb();
-#endif
-
-    // Direct SPI peripheral to drive LED display
-//#define SPI_LEDS
-#if defined(SPI_LEDS)
-    init_spi2();
-    spi2_setup_dma();
-    spi2_enable_dma();
-    init_tim15();
-    show_keys();
-#endif
-
-    // LED array SPI
-//#define SPI_LEDS_DMA
-#if defined(SPI_LEDS_DMA)
-    init_spi2();
-    spi2_setup_dma();
-    spi2_enable_dma();
-    show_keys();
-#endif
-
-    // SPI OLED direct drive
-//#define SPI_OLED
-#if defined(SPI_OLED)
-    init_spi1();
-    spi1_init_oled();
-    spi1_display1("Hello again,");
-    spi1_display2(username);
-#endif
-
-    // SPI
-//#define SPI_OLED_DMA
-#if defined(SPI_OLED_DMA)
-    init_spi1();
-    spi1_init_oled();
-    spi1_setup_dma();
-    spi1_enable_dma();
-#endif
-
-    // Uncomment when you are ready to generate a code.
-    autotest();
-
-    // Game on!  The goal is to score 100 points.
-    //game();
-    */
-//}
