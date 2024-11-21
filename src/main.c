@@ -62,7 +62,9 @@ int arr2[32];
 int arr3[32]; 
 int arr4[32]; 
 
-int freq[14] = {261.63, 261.63, 392.00, 392.00, 440.00, 440.00, 392.00, 349.23, 349.23, 329.23, 329.23, 293.66, 293.66, 261.63};
+//int freq[14] = {261.63, 261.63, 392.00, 392.00, 440.00, 440.00, 392.00, 349.23, 349.23, 329.23, 329.23, 293.66, 293.66, 261.63};
+int freq[24] = {392.00, 440.00, 392.00, 349.23, 329.63, 349.23, 392.00, 293.66, 329.63, 349.23, 329.63, 349.23, 392.00, 392.00, 440.00, 392.00, 349.23, 329.63, 349.23, 392.00, 293.66, 392.00, 329.63, 261.63};
+
 int freqindex = 0;
 
 extern uint8_t mode;
@@ -489,7 +491,8 @@ int main(void) {
     internal_clock();
     enable_ports();
     set_arrays();
-    int music[15] = {1, 1, 3, 3, 4, 4, 3, 0, 4, 4, 3, 3, 2, 2, 1}; //twinkle twinkle Make sure to change the l > music length - 1 value in line 271
+    //int music[15] = {1, 1, 3, 3, 4, 4, 3, 0, 4, 4, 3, 3, 2, 2, 1}; //twinkle twinkle Make sure to change the l > music length - 1 value in line 271
+    int music[29] = {3, 4, 3, 2, 1, 2, 3, 0, 1, 2, 3, 0, 2, 3, 4, 0, 3, 4, 3, 2, 1, 2, 3, 0, 1, 0, 4, 0, 3, 2};
     int i = 0;
     int arr[6] = {0, 1, 2, 4, 5, 6};
     int j = 0;
@@ -538,7 +541,7 @@ int main(void) {
         }
         l = 0;
         freqindex = 0;
-        while(l < 23) {
+        while(l < 36) {
             GPIOC->ODR |= 1<<7;
             set_row(arr[i]);
             full_clock(arr[i]);
@@ -557,7 +560,7 @@ int main(void) {
                 if (k>5) {
                     k = 0;   
                     check_end();                 
-                    if (l < 15) {
+                    if (l < 30) {
                         send_it(music[l]);
                     }
                     l++;
